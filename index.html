@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>YT 摘要</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      background: #0f1115;
+      color: #e6e8eb;
+      -webkit-font-smoothing: antialiased;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    header {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(15,17,21,.94); backdrop-filter: blur(10px);
+      padding: 14px 16px 10px; border-bottom: 1px solid #23272e;
+    }
+    header h1 { margin: 0; font-size: 19px; letter-spacing: .5px; display: inline; }
+    .sub { color: #8b93a1; font-size: 12px; margin-top: 4px; }
+    .toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; margin-top: 10px; flex-wrap: wrap;
+    }
+    #count { color: #8b93a1; font-size: 13px; }
+    #count b { color: #e6e8eb; }
+    .btn-all {
+      background: #1f2530; border: 1px solid #323a46; color: #cfd6e0;
+      font-size: 12px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
+    }
+    .btn-all:hover { background: #2a3340; }
+    .chips { display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; padding-bottom: 2px; }
+    .chip {
+      flex: 0 0 auto; background: transparent; border: 1px solid #2c333d;
+      color: #9aa4b2; font-size: 12px; padding: 5px 12px; border-radius: 999px; cursor: pointer;
+    }
+    .chip.on { background: #2f6df6; border-color: #2f6df6; color: #fff; }
+    .wrap { max-width: 640px; margin: 0 auto; padding: 16px 14px 40px; }
+    .card {
+      background: #1a1e25; border: 1px solid #262b34; border-radius: 14px;
+      padding: 18px 16px 14px; margin-bottom: 14px;
+    }
+    .card.read { opacity: .45; }
+    .meta { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+    .channel {
+      background: #2a3140; color: #aab4c6; font-size: 12px;
+      padding: 4px 10px; border-radius: 999px;
+    }
+    .category {
+      background: #1f3a5f; color: #9cc6ff; font-size: 12px;
+      padding: 4px 10px; border-radius: 999px;
+    }
+    .date { color: #6b7380; font-size: 12px; }
+    .unread-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #2f6df6;
+      display: inline-block; margin-left: auto;
+    }
+    .title {
+      font-size: 16px; font-weight: 700; line-height: 1.55; margin: 0;
+      color: #fff; cursor: pointer;
+    }
+    .title .caret { color: #6b7380; font-size: 12px; margin-left: 6px; display: inline-block; transition: transform .15s; }
+    .card.open .title .caret { transform: rotate(90deg); color: #6ea8ff; }
+    .card .body { display: none; margin-top: 12px; }
+    .card.open .body { display: block; }
+    .play { color: #6ea8ff; text-decoration: none; font-size: 12px; padding: 0 2px; }
+    .summary {
+      font-size: 15px; line-height: 1.95; letter-spacing: .25px; color: #c6cdd7;
+      word-break: break-word;
+    }
+    .summary b, .summary strong { color: #fff; }
+    .sec { border-left: 3px solid #2b3442; padding-left: 11px; margin: 0 0 11px; }
+    .sec:last-child { margin-bottom: 0; }
+    .sec-plain { border-left-color: #2b3442; }
+    .sec-main { border-left-color: #4f8cf7; color: #b9d0f5; }
+    .sec-points { border-left-color: #3c4655; }
+    .sec-concl { border-left-color: #c9a24a; color: #e2d3a8; }
+    .lbl { font-weight: 700; }
+    .sec-main .lbl { color: #6ea8ff; }
+    .sec-points .lbl { color: #9aa8bb; }
+    .sec-concl .lbl { color: #e0b95f; }
+    .hl-ai { color: #35e0c8; font-weight: 600; }
+    .hl-num { color: #ffd166; font-weight: 700; }
+    .card-foot { display: flex; justify-content: flex-end; margin-top: 14px; }
+    .btn-read {
+      background: #1f2a1f; border: 1px solid #2f4a33; color: #8fd39a;
+      font-size: 12px; padding: 7px 16px; border-radius: 8px; cursor: pointer;
+    }
+    .btn-read:hover { background: #2a3d2b; }
+    .btn-read:disabled { opacity: .5; }
+    .empty { text-align: center; color: #6b7380; padding: 60px 20px; font-size: 14px; line-height: 1.8; }
+    .loading { text-align: center; color: #6b7380; padding: 60px 20px; }
+    .err { text-align: center; color: #f0857a; padding: 60px 20px; font-size: 14px; }
+    .refresh {
+      position: fixed; right: 16px; bottom: 16px;
+      width: 46px; height: 46px; border-radius: 50%;
+      background: #2a3140; border: 1px solid #38404e; color: #e6e8eb;
+      font-size: 20px; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,.4);
+    }
+    .toast {
+      position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%);
+      background: #2a3140; border: 1px solid #38404e; color: #e6e8eb;
+      font-size: 13px; padding: 8px 16px; border-radius: 999px;
+      opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 20;
+    }
+    .toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>YT 摘要</h1>
+    <div class="sub" id="updated"></div>
+    <div class="toolbar">
+      <span id="count"></span>
+      <button class="btn-all" id="btnAllRead" onclick="markAll()">✓ 全部已讀</button>
+    </div>
+    <div class="chips" id="chips"></div>
+  </header>
+  <div class="wrap" id="list">
+    <div class="loading">載入中…</div>
+  </div>
+  <button class="refresh" onclick="load()" title="重新整理">↻</button>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // 純靜態唯讀版：資料來自同目錄 summary.json（由本機 export_summary.py 匯出）
+    // 「已讀」只記在這台裝置的 localStorage，不會寫回任何地方、不影響別人。
+    var state = { rows: [], filter: 'all', showRead: false, open: {}, readIds: {} };
+    var READ_KEY = 'ytdigest_read';
+
+    function esc(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
+    function hl(html) {
+      return html
+        .replace(/(GPT[-\d.]*|Qwen[\d.]*|Gemini[-\d.\s]*|Claude[-\d.\s]*|DeepSeek[-\w.]*|OpenAI|GitHub|Astra|Sora|CapCut|Kaggle|Llama|Grok|ComfyUI|T4|MTP|LoRA|VRAM|CUDA)/g,
+                 '<span class="hl-ai">$1</span>')
+        .replace(/(\$[\d,.]+|\d[\d,.]*\s?(?:GB|MB|TB|K|%|億|萬|倍|美元|元|tok\/s|tokens))/g,
+                 '<span class="hl-num">$1</span>');
+    }
+    function renderSummary(raw) {
+      var s = String(raw == null ? '' : raw);
+      var re = /【([^】]+)】/g, idx = [], m;
+      while ((m = re.exec(s)) !== null) idx.push({ at: m.index, label: m[1] });
+      if (!idx.length) {
+        return '<div class="sec sec-plain">' + hl(esc(s).replace(/\n/g, '<br>')) + '</div>';
+      }
+      var out = [], head = s.slice(0, idx[0].at).trim();
+      if (head) out.push('<div class="sec sec-plain">' + hl(esc(head).replace(/\n/g, '<br>')) + '</div>');
+      for (var i = 0; i < idx.length; i++) {
+        var body = s.slice(idx[i].at, i + 1 < idx.length ? idx[i + 1].at : s.length);
+        var kind = idx[i].label.indexOf('主旨') === 0 ? 'main'
+                 : idx[i].label.indexOf('重點') === 0 ? 'points' : 'concl';
+        var html = esc(body).replace(/\n/g, '<br>');
+        html = html.replace(/^(【[^】]+】)/, '<span class="lbl">$1</span>');
+        out.push('<div class="sec sec-' + kind + '">' + hl(html) + '</div>');
+      }
+      return out.join('');
+    }
+    function toast(msg) {
+      var t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(t._timer);
+      t._timer = setTimeout(function(){ t.classList.remove('show'); }, 1600);
+    }
+    function loadReadIds() {
+      try {
+        var arr = JSON.parse(localStorage.getItem(READ_KEY) || '[]');
+        state.readIds = {};
+        arr.forEach(function(id){ state.readIds[String(id)] = 1; });
+      } catch (e) { state.readIds = {}; }
+    }
+    function saveReadIds() {
+      try {
+        localStorage.setItem(READ_KEY, JSON.stringify(Object.keys(state.readIds)));
+      } catch (e) {}
+    }
+    function categories() {
+      var seen = {}, arr = [];
+      state.rows.forEach(function(r){
+        if (r.category && !seen[r.category]) { seen[r.category] = 1; arr.push(r.category); }
+      });
+      return arr;
+    }
+    function renderChips() {
+      var el = document.getElementById('chips');
+      var chs = categories();
+      if (chs.length <= 1) { el.innerHTML = ''; return; }
+      var html = '<button class="chip' + (state.filter === 'all' ? ' on' : '') + '" onclick="setFilter(\'all\')">全部</button>';
+      chs.forEach(function(c){
+        html += '<button class="chip' + (state.filter === c ? ' on' : '') + '" onclick="setFilter(\'' + esc(c).replace(/'/g,"\\'") + '\')">' + esc(c) + '</button>';
+      });
+      el.innerHTML = html;
+    }
+    function setFilter(f) {
+      state.filter = f;
+      renderChips();
+      render();
+    }
+    function isRead(r) { return !!state.readIds[String(r.id)]; }
+    function markAll() {
+      if (!state.rows.length) return;
+      if (!confirm('將全部 ' + state.rows.length + ' 則標記為已讀？（只記在這台裝置，不影響別人）')) return;
+      state.rows.forEach(function(r){ state.readIds[String(r.id)] = 1; });
+      saveReadIds();
+      render();
+      toast('已全部標記為已讀');
+    }
+    function markOne(i) {
+      var r = state.rows[i];
+      if (!r || isRead(r)) return;
+      state.readIds[String(r.id)] = 1;
+      saveReadIds();
+      render();
+      toast('已標記已讀');
+    }
+    function render() {
+      var el = document.getElementById('list');
+      var unread = state.rows.filter(function(r){ return !isRead(r); }).length;
+      document.getElementById('count').innerHTML =
+        '未讀 <b>' + unread + '</b> / 共 ' + state.rows.length + ' 則';
+      var sub = '更新於 ' + new Date().toLocaleString();
+      document.getElementById('updated').textContent = sub;
+
+      var arr = state.rows.filter(function(r){
+        if (!state.showRead && isRead(r)) return false;
+        if (state.filter !== 'all' && r.category !== state.filter) return false;
+        return true;
+      });
+
+      if (!arr.length) {
+        el.innerHTML = '<div class="empty">' +
+          (state.rows.length ? '沒有未讀摘要。' : '還沒有摘要。等新影片出現就會出現在這裡。') +
+          '<br><br><button class="chip" onclick="toggleRead()">' + (state.showRead ? '只看未讀' : '顯示已讀') + '</button></div>';
+        return;
+      }
+      el.innerHTML = arr.map(function(r, idx){
+        var realIdx = state.rows.indexOf(r);
+        var open = !!state.open[realIdx];
+        var title = esc(r.title);
+        var play = r.url
+          ? '<a class="play" href="' + esc(r.url) + '" target="_blank" rel="noopener" title="開影片">▶</a>'
+          : '';
+        var cat = r.category ? '<span class="category">' + esc(r.category) + '</span>' : '';
+        var chan = r.channel ? '<span class="channel">' + esc(r.channel) + '</span>' : '';
+        var date = r.date ? '<span class="date">發佈 ' + esc(r.date) + '</span>' : '';
+        var dot = isRead(r) ? '' : '<span class="unread-dot" title="未讀"></span>';
+        var foot = isRead(r) ? '' :
+          '<div class="card-foot"><button class="btn-read" onclick="markOne(' + realIdx + ')">✓ 已讀</button></div>';
+        return '<div class="card' + (isRead(r) ? ' read' : '') + (open ? ' open' : '') + '">' +
+          '<div class="meta">' + cat + chan + date + play + dot + '</div>' +
+          '<div class="title" onclick="toggleCard(' + realIdx + ')">' + title + '<span class="caret">▸</span></div>' +
+          '<div class="body"><div class="summary">' + renderSummary(r.summary) + '</div>' + foot + '</div>' +
+        '</div>';
+      }).join('');
+    }
+    function toggleCard(i) {
+      state.open[i] = !state.open[i];
+      render();
+    }
+    function toggleRead() {
+      state.showRead = !state.showRead;
+      render();
+    }
+    function load() {
+      document.getElementById('list').innerHTML = '<div class="loading">載入中…</div>';
+      loadReadIds();
+      fetch('summary.json?t=' + Date.now())
+        .then(function(r){
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function(rows){
+          state.rows = rows || [];
+          renderChips();
+          render();
+        })
+        .catch(function(e){
+          document.getElementById('list').innerHTML =
+            '<div class="err">讀取失敗：' + esc(e && e.message || e) + '</div>';
+        });
+    }
+    load();
+  </script>
+</body>
+</html>
