@@ -22,7 +22,7 @@
       background: rgba(15,17,21,.94); backdrop-filter: blur(10px);
       padding: 14px 16px 10px; border-bottom: 1px solid #23272e;
     }
-    header h1 { margin: 0; font-size: 19px; letter-spacing: .5px; display: inline; }
+    header h1 { margin: 0; font-size: 19px; letter-spacing: .5px; display: inline; cursor: default; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
     .sub { color: #8b93a1; font-size: 12px; margin-top: 4px; }
     .toolbar {
       display: flex; align-items: center; justify-content: space-between;
@@ -114,7 +114,7 @@
 </head>
 <body>
   <header>
-    <h1>YT 摘要</h1>
+    <h1 onclick="onHeaderClick()">YT 摘要</h1>
     <div class="sub" id="updated"></div>
     <div class="toolbar">
       <span id="count"></span>
@@ -129,10 +129,13 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    // 純靜態唯讀版：資料來自同目錄 summary.json（由本機 export_summary.py 匯出）
+    // 純靜態版：資料來自同目錄 summary.json（由本機 export_summary.py 匯出）
+    // 預設是「唯讀」：看不到任何標記按鈕。
+    // 隱形入口：連點標題兩下 → 顯示「✓ 已讀 / 全部已讀」；再連點兩下關閉。
     // 「已讀」只記在這台裝置的 localStorage，不會寫回任何地方、不影響別人。
-    var state = { rows: [], filter: 'all', showRead: false, open: {}, readIds: {} };
+    var state = { rows: [], filter: 'all', showRead: false, open: {}, readIds: {}, editMode: false };
     var READ_KEY = 'ytdigest_read';
+    var EDIT_KEY = 'ytdigest_edit';
 
     function esc(s) {
       return String(s == null ? '' : s)
@@ -184,6 +187,25 @@
         localStorage.setItem(READ_KEY, JSON.stringify(Object.keys(state.readIds)));
       } catch (e) {}
     }
+    function loadEditMode() {
+      try { state.editMode = localStorage.getItem(EDIT_KEY) === '1'; }
+      catch (e) { state.editMode = false; }
+    }
+    function saveEditMode() {
+      try { localStorage.setItem(EDIT_KEY, state.editMode ? '1' : '0'); } catch (e) {}
+    }
+    var _lastTap = 0;
+    function onHeaderClick() {
+      var now = Date.now();
+      if (now - _lastTap < 450) { _lastTap = 0; toggleEdit(); }
+      else { _lastTap = now; }
+    }
+    function toggleEdit() {
+      state.editMode = !state.editMode;
+      saveEditMode();
+      render();
+      toast(state.editMode ? '管理模式：已顯示標記按鈕' : '已回到唯讀模式');
+    }
     function categories() {
       var seen = {}, arr = [];
       state.rows.forEach(function(r){
@@ -228,7 +250,9 @@
       var unread = state.rows.filter(function(r){ return !isRead(r); }).length;
       document.getElementById('count').innerHTML =
         '未讀 <b>' + unread + '</b> / 共 ' + state.rows.length + ' 則';
+      document.getElementById('btnAllRead').style.display = state.editMode ? '' : 'none';
       var sub = '更新於 ' + new Date().toLocaleString();
+      if (state.editMode) sub += ' · 管理模式（連點標題兩下關閉）';
       document.getElementById('updated').textContent = sub;
 
       var arr = state.rows.filter(function(r){
@@ -254,8 +278,8 @@
         var chan = r.channel ? '<span class="channel">' + esc(r.channel) + '</span>' : '';
         var date = r.date ? '<span class="date">發佈 ' + esc(r.date) + '</span>' : '';
         var dot = isRead(r) ? '' : '<span class="unread-dot" title="未讀"></span>';
-        var foot = isRead(r) ? '' :
-          '<div class="card-foot"><button class="btn-read" onclick="markOne(' + realIdx + ')">✓ 已讀</button></div>';
+        var foot = (state.editMode && !isRead(r)) ?
+          '<div class="card-foot"><button class="btn-read" onclick="markOne(' + realIdx + ')">✓ 已讀</button></div>' : '';
         return '<div class="card' + (isRead(r) ? ' read' : '') + (open ? ' open' : '') + '">' +
           '<div class="meta">' + cat + chan + date + play + dot + '</div>' +
           '<div class="title" onclick="toggleCard(' + realIdx + ')">' + title + '<span class="caret">▸</span></div>' +
@@ -274,6 +298,7 @@
     function load() {
       document.getElementById('list').innerHTML = '<div class="loading">載入中…</div>';
       loadReadIds();
+      loadEditMode();
       fetch('summary.json?t=' + Date.now())
         .then(function(r){
           if (!r.ok) throw new Error('HTTP ' + r.status);
