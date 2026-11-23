@@ -89,10 +89,11 @@
     .hl-num { color: #ffd166; font-weight: 700; }
     .card-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; }
     .btn-fav {
-      background: transparent; border: 1px solid #323a46; color: #8b93a1;
-      font-size: 14px; padding: 5px 12px; border-radius: 8px; cursor: pointer;
+      background: transparent; border: none; color: #5f6773;
+      font-size: 16px; padding: 2px 4px; cursor: pointer; line-height: 1;
+      -webkit-tap-highlight-color: transparent;
     }
-    .btn-fav.on { color: #ffd166; border-color: #6b5a2a; background: #2a2418; }
+    .btn-fav.on { color: #ffd166; }
     .btn-read {
       background: #1f2a1f; border: 1px solid #2f4a33; color: #8fd39a;
       font-size: 12px; padding: 7px 16px; border-radius: 8px; cursor: pointer;
@@ -323,9 +324,9 @@
         var favBtn = '<button class="btn-fav' + (isFav(r) ? ' on' : '') + '" onclick="toggleFav(' + realIdx + ')" title="' + (isFav(r) ? '取消收藏' : '收藏') + '">' + (isFav(r) ? '★' : '☆') + '</button>';
         var readBtn = (state.editMode && !isRead(r)) ?
           '<button class="btn-read" onclick="markOne(' + realIdx + ')">✓ 已讀</button>' : '';
-        var foot = '<div class="card-foot">' + favBtn + readBtn + '</div>';
+        var foot = readBtn ? '<div class="card-foot">' + readBtn + '</div>' : '';
         return '<div class="card' + (isRead(r) ? ' read' : '') + (open ? ' open' : '') + '">' +
-          '<div class="meta">' + cat + chan + date + play + dot + '</div>' +
+          '<div class="meta">' + cat + chan + date + play + favBtn + dot + '</div>' +
           '<div class="title" onclick="toggleCard(' + realIdx + ')">' + title + '<span class="caret">▸</span></div>' +
           '<div class="body"><div class="summary">' + renderSummary(r.summary) + '</div>' + foot + '</div>' +
         '</div>';
