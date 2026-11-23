@@ -87,7 +87,12 @@
     .sec-concl .lbl { color: #e0b95f; }
     .hl-ai { color: #35e0c8; font-weight: 600; }
     .hl-num { color: #ffd166; font-weight: 700; }
-    .card-foot { display: flex; justify-content: flex-end; margin-top: 14px; }
+    .card-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; }
+    .btn-fav {
+      background: transparent; border: 1px solid #323a46; color: #8b93a1;
+      font-size: 14px; padding: 5px 12px; border-radius: 8px; cursor: pointer;
+    }
+    .btn-fav.on { color: #ffd166; border-color: #6b5a2a; background: #2a2418; }
     .btn-read {
       background: #1f2a1f; border: 1px solid #2f4a33; color: #8fd39a;
       font-size: 12px; padding: 7px 16px; border-radius: 8px; cursor: pointer;
@@ -133,9 +138,10 @@
     // 預設是「唯讀」：看不到任何標記按鈕。
     // 隱形入口：連點標題兩下 → 顯示「✓ 已讀 / 全部已讀」；再連點兩下關閉。
     // 「已讀」只記在這台裝置的 localStorage，不會寫回任何地方、不影響別人。
-    var state = { rows: [], filter: 'all', showRead: false, open: {}, readIds: {}, editMode: false };
+    var state = { rows: [], filter: 'all', showRead: false, open: {}, readIds: {}, editMode: false, fav: {} };
     var READ_KEY = 'ytdigest_read';
     var EDIT_KEY = 'ytdigest_edit';
+    var FAV_KEY = 'ytdigest_fav';
 
     function esc(s) {
       return String(s == null ? '' : s)
@@ -187,6 +193,40 @@
         localStorage.setItem(READ_KEY, JSON.stringify(Object.keys(state.readIds)));
       } catch (e) {}
     }
+    // ── 最愛（收藏）：整張卡片複製進 localStorage，即使日後被 50 條上限清掉也還在 ──
+    function loadFav() {
+      try {
+        state.fav = JSON.parse(localStorage.getItem(FAV_KEY) || '{}') || {};
+      } catch (e) { state.fav = {}; }
+    }
+    function saveFav() {
+      try { localStorage.setItem(FAV_KEY, JSON.stringify(state.fav)); } catch (e) {}
+    }
+    function isFav(r) { return !!(r && state.fav[String(r.id)]); }
+    function toggleFav(i) {
+      var r = state.rows[i];
+      if (!r) return;
+      var id = String(r.id);
+      if (state.fav[id]) {
+        delete state.fav[id];
+        toast('已取消收藏');
+      } else {
+        state.fav[id] = { id: r.id, date: r.date, channel: r.channel, title: r.title,
+                          url: r.url, duration: r.duration, summary: r.summary, category: r.category };
+        toast('已加入最愛（永久保存）');
+      }
+      saveFav();
+      render();
+    }
+    function mergeFavs(rows) {
+      var ids = {}, out = [];
+      rows.forEach(function(r){ ids[String(r.id)] = 1; out.push(r); });
+      Object.keys(state.fav).forEach(function(id){
+        if (!ids[id]) out.push(state.fav[id]);
+      });
+      out.sort(function(a, b){ return String(b.date || '').localeCompare(String(a.date || '')); });
+      return out;
+    }
     function loadEditMode() {
       try { state.editMode = localStorage.getItem(EDIT_KEY) === '1'; }
       catch (e) { state.editMode = false; }
@@ -218,6 +258,7 @@
       var chs = categories();
       if (chs.length <= 1) { el.innerHTML = ''; return; }
       var html = '<button class="chip' + (state.filter === 'all' ? ' on' : '') + '" onclick="setFilter(\'all\')">全部</button>';
+      html += '<button class="chip' + (state.filter === 'fav' ? ' on' : '') + '" onclick="setFilter(\'fav\')">⭐ 最愛</button>';
       chs.forEach(function(c){
         html += '<button class="chip' + (state.filter === c ? ' on' : '') + '" onclick="setFilter(\'' + esc(c).replace(/'/g,"\\'") + '\')">' + esc(c) + '</button>';
       });
@@ -257,7 +298,8 @@
 
       var arr = state.rows.filter(function(r){
         if (!state.showRead && isRead(r)) return false;
-        if (state.filter !== 'all' && r.category !== state.filter) return false;
+        if (state.filter === 'fav') { if (!isFav(r)) return false; }
+        else if (state.filter !== 'all' && r.category !== state.filter) return false;
         return true;
       });
 
@@ -278,8 +320,10 @@
         var chan = r.channel ? '<span class="channel">' + esc(r.channel) + '</span>' : '';
         var date = r.date ? '<span class="date">發佈 ' + esc(r.date) + '</span>' : '';
         var dot = isRead(r) ? '' : '<span class="unread-dot" title="未讀"></span>';
-        var foot = (state.editMode && !isRead(r)) ?
-          '<div class="card-foot"><button class="btn-read" onclick="markOne(' + realIdx + ')">✓ 已讀</button></div>' : '';
+        var favBtn = '<button class="btn-fav' + (isFav(r) ? ' on' : '') + '" onclick="toggleFav(' + realIdx + ')" title="' + (isFav(r) ? '取消收藏' : '收藏') + '">' + (isFav(r) ? '★' : '☆') + '</button>';
+        var readBtn = (state.editMode && !isRead(r)) ?
+          '<button class="btn-read" onclick="markOne(' + realIdx + ')">✓ 已讀</button>' : '';
+        var foot = '<div class="card-foot">' + favBtn + readBtn + '</div>';
         return '<div class="card' + (isRead(r) ? ' read' : '') + (open ? ' open' : '') + '">' +
           '<div class="meta">' + cat + chan + date + play + dot + '</div>' +
           '<div class="title" onclick="toggleCard(' + realIdx + ')">' + title + '<span class="caret">▸</span></div>' +
@@ -299,13 +343,14 @@
       document.getElementById('list').innerHTML = '<div class="loading">載入中…</div>';
       loadReadIds();
       loadEditMode();
+      loadFav();
       fetch('summary.json?t=' + Date.now())
         .then(function(r){
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.json();
         })
         .then(function(rows){
-          state.rows = rows || [];
+          state.rows = mergeFavs(rows || []);
           renderChips();
           render();
         })
